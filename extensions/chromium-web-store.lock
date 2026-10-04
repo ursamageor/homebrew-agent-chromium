@@ -1,0 +1,5 @@
+# https://github.com/NeverDecaf/chromium-web-store — Web Store install/update UI for ungoogled-chromium (MIT)
+NAME="chromium-web-store"
+VERSION="1.5.5.4"
+URL="https://github.com/NeverDecaf/chromium-web-store/releases/download/v1.5.5.4/Chromium.Web.Store.crx"
+SHA256="63c075b4a25b11af2c536dad191946e8d9547f92d5b6c257b2ce4138d2996f32"

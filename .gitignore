@@ -1,0 +1,10 @@
+# .agents folder is ignored except for specific exceptions that are useful for the project
+.agents/*
+!.agents/knowledge/
+!.agents/skills/
+.env
+.DS_Store
+
+# build outputs
+/build/
+/dist/

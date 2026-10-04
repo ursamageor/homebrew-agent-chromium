@@ -1,0 +1,30 @@
+{
+  "distribution": {
+    "skip_first_run_ui": true,
+    "suppress_first_run_default_browser_prompt": true,
+    "show_welcome_page": false,
+    "make_chrome_default_for_user": false,
+    "import_bookmarks": false,
+    "import_history": false,
+    "import_home_page": false,
+    "import_search_engine": false
+  },
+  "browser": {
+    "has_seen_welcome_page": true
+  },
+  "credentials_enable_service": false,
+  "credentials_enable_autosignin": false,
+  "profile": {
+    "password_manager_enabled": false
+  },
+  "translate": {
+    "enabled": false
+  },
+  "enable_do_not_track": true,
+  "download": {
+    "prompt_for_download": false
+  },
+  "extensions": {
+    "pinned_extensions": ["nkanlecjgnbjkjanadbbedolemolellk"]
+  }
+}
