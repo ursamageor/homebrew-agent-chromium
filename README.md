@@ -83,6 +83,7 @@ zip per architecture comes out. Needs `gh`.
 
 ```sh
 scripts/build-app.sh          # download, verify, repackage: dist/Agent-Chromium-<ver>-<arch>.zip
+scripts/smoke-test.sh --app build/arm64/Agent-Chromium.app   # throwaway-profile test, ~25 s
 scripts/release.sh            # put the zips' checksums into the cask (dry run)
 scripts/release.sh --publish  # create the GitHub release; then commit and push the cask
 ```
@@ -101,7 +102,7 @@ with changes of our own, build with `--revision 1` (then 2, …): the version be
 | `launcher/` | launcher stub and script (flags, profile, `agent-chromium` CLI), `setup.sh` |
 | `prefs/initial_preferences.json` | settings seeded into a new profile |
 | `skills/agent-chromium/` | the skill installed into agents |
-| `scripts/` | build, release, and `guarded-run.sh` for testing new builds |
+| `scripts/` | build, smoke test, release, and `guarded-run.sh` for first runs of new builds |
 
 ## License
 
