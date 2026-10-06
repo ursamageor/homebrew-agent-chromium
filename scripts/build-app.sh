@@ -2,6 +2,7 @@
 # Build Agent-Chromium.app from an ungoogled-chromium DMG.
 #
 #   scripts/build-app.sh [--arch arm64|x86_64|all] [--version <ver>] [--revision <n>] [--out <dir>]
+#                        [--force]
 #   scripts/build-app.sh --dmg <path> [--arch <arch>] [--version <ver>]   (try a local DMG)
 #   scripts/build-app.sh --cask-only                    (regenerate the dev cask from the zips)
 #
@@ -12,6 +13,10 @@
 #
 # --revision <n> re-releases the same upstream build with changes of ours: the package version
 # becomes <ver>_<n> (0, the default, gives plain <ver>).
+#
+# A zip is only rebuilt when its inputs changed (upstream DMG, version, and every repo file that
+# goes into the app, this script included); otherwise the existing zip, and so its checksum, is
+# kept. Rebuilds never produce the same bytes. --force rebuilds anyway.
 #
 # Output per arch: <out>/Agent-Chromium-<version>-<arch>.zip and its .sha256. Then
 # <out>/agent-chromium-dev.rb, a copy of the cask pointing at the local zips (installable from the
@@ -38,13 +43,14 @@ out="$repo/dist"
 build="$repo/build"
 cask_only=0   # --cask-only: regenerate the dev cask from existing zips, skip the app build
 no_cask=0     # --no-cask: internal, set for the per-arch runs of --arch all
+force=0       # --force: rebuild even when the inputs are unchanged
 
 log() { printf '==> %s\n' "$*" >&2; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || die "missing tool: $1"; }
 
 usage() {
-  sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -57,11 +63,13 @@ while [ $# -gt 0 ]; do
     --out)       out="$2"; shift 2 ;;
     --cask-only) cask_only=1; shift ;;
     --no-cask)   no_cask=1; shift ;;
+    --force)     force=1; shift ;;
     -h|--help)   usage ;;
     *)           die "unknown argument: $1" ;;
   esac
 done
 [[ "$revision" =~ ^[0-9]+$ ]] || die "--revision takes a number"
+mkdir -p "$out" && out="$(cd "$out" && pwd)"   # absolute: file:// URLs, checks run from inside it
 
 for tool in hdiutil ditto plutil codesign lipo xattr cc curl shasum unzip zip od; do need "$tool"; done
 
@@ -134,8 +142,11 @@ version="$upstream_version"
 # --- One build per arch -------------------------------------------------------------------------
 if [ -z "$dmg" ] && [ "${arch:-all}" = all ]; then
   log "ungoogled-chromium $upstream_version -> $APP_NAME $version"
+  pass=()
+  [ "$force" -eq 0 ] || pass+=(--force)
   for a in "${ARCHES[@]}"; do
-    "$0" --arch "$a" --version "$upstream_version" --revision "$revision" --out "$out" --no-cask
+    "$0" --arch "$a" --version "$upstream_version" --revision "$revision" --out "$out" --no-cask \
+      ${pass[@]+"${pass[@]}"}
   done
   write_dev_cask
   exit 0
@@ -147,10 +158,46 @@ case "$arch" in
 esac
 
 # --- Source DMG ---------------------------------------------------------------------------------
+digest=""
 if [ -z "$dmg" ]; then
   dmg="$build/downloads/ungoogled-chromium_${upstream_version}_${arch}-macos.dmg"
   digest="$(awk -v n="$(basename "$dmg")" '$1 == n { print $2 }' <<<"$release")"
   [[ "$digest" == sha256:* ]] || die "release $upstream_version has no $(basename "$dmg") with a sha256 digest"
+  dmg_sha256="${digest#sha256:}"
+else
+  [ -f "$dmg" ] || die "DMG not found: $dmg"
+  dmg_sha256="$(shasum -a 256 "$dmg" | cut -d' ' -f1)"
+fi
+
+app="$build/$arch/$APP_NAME.app"
+contents="$app/Contents"
+zip_path="$out/$APP_NAME-$version-$arch.zip"
+
+# --- Skip when nothing changed ------------------------------------------------------------------
+# The fingerprint of everything that goes into the zip. Kept next to the zip (.inputs) and in
+# build/<arch>/ (whose app the smoke test runs). Not covered: the compiler and macOS tools.
+inputs="$(
+  {
+    printf 'version %s\narch %s\ndmg %s\n' "$version" "$arch" "$dmg_sha256"
+    cd "$repo" && find scripts/build-app.sh launcher prefs skills extensions licenses THIRD_PARTY.md \
+      -type f ! -name .DS_Store -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256
+  } | shasum -a 256 | cut -d' ' -f1
+)"
+if [ "$force" -eq 0 ] && [ "$(cat "$zip_path.inputs" 2>/dev/null)" = "$inputs" ] \
+   && (cd "$out" && shasum -a 256 -c "$zip_path.sha256" >/dev/null 2>&1); then
+  log "$APP_NAME $version ($arch): inputs unchanged, keeping $zip_path (--force rebuilds)"
+  if [ "$(cat "$build/$arch/inputs" 2>/dev/null)" != "$inputs" ]; then
+    log "Unpacking it into $build/$arch"
+    rm -rf "$app"
+    mkdir -p "$build/$arch"
+    ditto -x -k "$zip_path" "$build/$arch"
+    printf '%s\n' "$inputs" > "$build/$arch/inputs"
+  fi
+  [ "$no_cask" -eq 1 ] || write_dev_cask
+  exit 0
+fi
+
+if [ -n "$digest" ]; then
   if [ ! -f "$dmg" ]; then
     log "Downloading ungoogled-chromium $upstream_version ($arch)"
     mkdir -p "$build/downloads"
@@ -158,22 +205,17 @@ if [ -z "$dmg" ]; then
       "https://github.com/$UPSTREAM_REPO/releases/download/$upstream_version/$(basename "$dmg")"
     mv "$dmg.part" "$dmg"
   fi
-  printf '%s  %s\n' "${digest#sha256:}" "$dmg" | shasum -a 256 -c - >/dev/null \
+  printf '%s  %s\n' "$dmg_sha256" "$dmg" | shasum -a 256 -c - >/dev/null \
     || die "sha256 mismatch for $dmg (delete it to re-download)"
 else
   log "Using local DMG $dmg: no checksum, signature still checked"
 fi
-[ -f "$dmg" ] || die "DMG not found: $dmg"
-
-app="$build/$arch/$APP_NAME.app"
-contents="$app/Contents"
-zip_path="$out/$APP_NAME-$version-$arch.zip"
 
 log "Building $APP_NAME $version ($arch) from $(basename "$dmg")"
 
 # --- Copy the app out of the DMG ---------------------------------------------------------------
 mkdir -p "$build/$arch" "$out"
-rm -rf "$app"
+rm -rf "$app" "$build/$arch/inputs" "$zip_path.inputs"
 
 mount="$(mktemp -d /tmp/agent-chromium-dmg.XXXXXX)"
 hdiutil attach -nobrowse -readonly -quiet -mountpoint "$mount" "$dmg"
@@ -291,6 +333,7 @@ rm -f "$zip_path"
 ditto -c -k --sequesterRsrc --keepParent "$app" "$zip_path"
 printf '%s  %s\n' "$(shasum -a 256 "$zip_path" | cut -d' ' -f1)" "$(basename "$zip_path")" \
   > "$zip_path.sha256"
+printf '%s\n' "$inputs" | tee "$zip_path.inputs" > "$build/$arch/inputs"
 
 log "Done: $zip_path"
 [ "$no_cask" -eq 1 ] || write_dev_cask
