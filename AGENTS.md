@@ -65,6 +65,14 @@ sensitivity: read it (`cat` or `source`) when you need a value; never commit it.
 - **Never touch the daily profile.** Tests and experiments must not read or write
   `~/Library/Application Support/Chromium` or `~/Library/Caches/Chromium`. Test on a copy of the app,
   and when the target data folder is unproven, guard the run (`scripts/guarded-run.sh`, see the isolation doc).
+- **IMPORTANT — build before committing app changes.** The cask pins each zip's sha256, and rebuilds
+  never produce the same bytes. When a change touches anything that goes into the app
+  (`scripts/build-app.sh`, `launcher/`, `prefs/`, `skills/`, `extensions/`, `licenses/`,
+  `THIRD_PARTY.md`), run `scripts/build-app.sh` and then `scripts/release.sh` (dry run, updates
+  `Casks/agent-chromium.rb`) *before* committing. Commit the cask with that change, or with the
+  last commit in a series, never as a separate "update checksums" commit afterwards. If the
+  cask's version is already published (`gh release list`), build with `--revision <n+1>`: a
+  published zip can't change under its checksum.
 - **Subfolders, always.** Every document under `plans/`, `notes/`, and `knowledge/` lives in a
   clearly named subfolder — nothing at the root of those folders except `knowledge/INDEX.md` and
   plan-mode files.
