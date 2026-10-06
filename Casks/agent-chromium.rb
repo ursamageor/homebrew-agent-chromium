@@ -1,9 +1,9 @@
 cask "agent-chromium" do
   arch arm: "arm64", intel: "x86_64"
 
-  version "154.0.8037.57-1.1"
-  sha256 arm:   "2f7d30c5f0a27cacdad0b386d4444929ab1df8d8a5b7d2f7065fddc692fe2e32",
-         intel: "3c631654b2f4a82757cd9c7db3673a5c871c110ca859ed480677fc64b7b3174e"
+  version "154.0.8037.57-1.1_1"
+  sha256 arm:   "83d1b08b68ff8f245d9990c094d26ad9ae7eecd5ab58413260e0e30f66df2d52",
+         intel: "abf6ad2c060705ae57030775f2b4d5caabcf4b5cadffa26379976fd7ed04f460"
 
   url "https://github.com/ursamageor/homebrew-agent-chromium/releases/download/v#{version}/Agent-Chromium-#{version}-#{arch}.zip"
   name "Agent-Chromium"

@@ -187,6 +187,7 @@ check "Bitwarden running under its fixed ID" wait_for 15 has_worker "$BITWARDEN_
 check "chromium-web-store running" wait_for 15 has_worker "$WEB_STORE_ID"
 check "search-engine settings tab opened" wait_for 15 has_page "chrome://settings/search"
 expect_match "Bitwarden pinned in the seeded profile" "$BITWARDEN_ID" "$(pinned_ids)"
+expect_match "chromium-web-store pinned in the seeded profile" "$WEB_STORE_ID" "$(pinned_ids)"
 expect_match "status reports it" "running \(pid $browser_pid\).*127.0.0.1:$port" "$(cli status 2>&1 | head -n 1)"
 user_tabs="$(pages)"   # the "user's" tabs: must survive everything agents do below
 expect_match "user tabs recorded for the untouched check" 'chrome://settings/search' "$user_tabs"
@@ -280,6 +281,7 @@ kill -TERM "$pid"
 if wait_for 15 gone "$pid"; then ok "SIGTERM quits it"; else bad "SIGTERM quits it"; fi
 check "status: not running after quit" not_running
 expect_match "Bitwarden pin survives a quit" "$BITWARDEN_ID" "$(pinned_ids)"
+expect_match "chromium-web-store pin survives a quit" "$WEB_STORE_ID" "$(pinned_ids)"
 if start_browser; then ok "restarts on the existing profile"; else bad "restarts on the existing profile"; fi
 check "  ... without reopening the settings tab" no_page "chrome://settings/search"
 pid="$browser_pid"
