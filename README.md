@@ -1,111 +1,166 @@
 # Agent-Chromium
 
-A browser for you and your coding agents to share. It is
-[ungoogled-chromium](https://github.com/ungoogled-software/ungoogled-chromium) repackaged as its
-own app, with Bitwarden and the Chrome Web Store extension built in, and
-[agent-browser](https://github.com/vercel-labs/agent-browser) wired to it. Claude Code, Codex,
-ChatGPT, Claude Desktop and other agents drive it through `agent-browser`, in the same window and
-logins you use yourself.
+One install that gives a Mac a fast browser your coding agents can control. It was made first for the
+people I do IT support for, but anyone can use it.
 
-It installs next to any other Chromium or Chrome and never touches their data: its own app name,
-bundle ID and profile folder.
+It is two things, installed together with Homebrew:
+
+- [agent-browser](https://github.com/vercel-labs/agent-browser) by Vercel, the command-line tool that
+  Claude Code, Codex, Claude Desktop, ChatGPT and other agents use to drive a browser.
+- **Agent-Chromium**, a browser app built from
+  [ungoogled-chromium](https://github.com/ungoogled-software/ungoogled-chromium), repackaged with a few
+  settings and extensions already in place.
+
+You and your agents share the browser: same window, same logins. Agents work in tabs of their own. It
+installs next to any other Chromium or Chrome and never touches their data.
 
 ## Install
 
-Needs macOS 13 or later (Apple Silicon or Intel) and [Homebrew](https://brew.sh).
+Written so you can hand it to your agent. Needs macOS 13 or later, on Apple Silicon or Intel.
+
+1. **Homebrew.** Check with `command -v brew`. If it's missing, install it from [brew.sh](https://brew.sh):
+
+   ```sh
+   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+   ```
+
+   It asks for the Mac's admin password, so the user runs it in Terminal, not the agent. At the end it
+   prints two commands that put `brew` on the PATH; run them.
+
+2. **Agent-Chromium:**
+
+   ```sh
+   brew install --cask ursamageor/agent-chromium/agent-chromium
+   ```
+
+   The full name taps `ursamageor/agent-chromium` and trusts the cask in one step; Homebrew asks for
+   that trust for anything outside its own taps. Later commands can use the short name
+   `agent-chromium`. Homebrew also shows agent-browser's note to run `agent-browser install`: skip
+   it, that downloads a browser you don't need here.
+
+3. **Setup:**
+
+   ```sh
+   agent-chromium setup
+   ```
+
+   This points agent-browser at Agent-Chromium (it writes `~/.agent-browser/config.json`, only if
+   there is none yet). Then it asks, one at a time, whether to install the agent-chromium skill for
+   each agent it finds. Run by an agent, without a terminal, it installs no skills; with
+   `--skills yes` it installs all of them without asking.
+
+4. **Test:**
+
+   ```sh
+   agent-browser open https://example.com    # opens a tab in the Agent-Chromium window
+   agent-chromium status                     # running? on which port?
+   ```
+
+### After installing (by hand, once)
+
+- **Search engine.** Open Agent-Chromium from Applications or Spotlight. The first time, it opens the
+  search engine settings, because ungoogled-chromium ships with none and the choice can't be preset.
+  Pick **DuckDuckGo**: quick results, and it doesn't track you. The choice sticks.
+- **Bitwarden.** Click the Bitwarden icon in the toolbar and log in. Your account's region (US, EU or
+  self-hosted) is picked on the login screen. Then see [Bitwarden settings](#bitwarden) below.
+
+## What's included
+
+- **agent-browser**, Homebrew's standard package, the same as `brew install agent-browser`. It brings
+  its own dependencies, Node among them, and updates with `brew upgrade`. Only its config file is
+  ours, written by `agent-chromium setup`.
+- **Agent-Chromium** in `/Applications`: ungoogled-chromium with its own name, bundle ID and profile,
+  so it can sit next to another Chromium. It adds:
+  - **settings** for a new profile: no welcome or import screens, no default-browser nagging,
+    Chromium's own password manager and Translate off, Do Not Track on, downloads saved without
+    asking;
+  - **extensions:** Bitwarden and the Chrome Web Store extension (see [Defaults](#defaults));
+  - the **`agent-chromium` command**, which agent-browser uses to find and start the browser.
+- **Your profile**, created on first launch: `~/Library/Application Support/Agent-Chromium/User Data`.
+  Logins, cookies, bookmarks and extensions live there. Upgrades keep it.
+- **Skills**, only where you said yes during setup: `~/.agents/skills/agent-chromium`,
+  `~/.claude/skills/agent-chromium`, and Claude Desktop's own skill list.
+
+Nothing starts at login and nothing runs in the background. If the browser isn't running, the first
+agent-browser command starts it.
+
+## Defaults
+
+### A visible window
+
+The browser runs with a normal window so you can see what your agents do, and step in to log in,
+answer a CAPTCHA or unlock Bitwarden. Agents open tabs of their own and never touch yours; their tabs
+stay open when they're done.
+
+For runs where nobody needs to watch, quit Agent-Chromium and start it headless. It uses the same
+profile and port, so agent-browser connects to it the same way:
 
 ```sh
-brew tap ursamageor/agent-chromium
-brew trust ursamageor/agent-chromium
-brew install --cask agent-chromium
-agent-chromium setup
+agent-chromium --headless &               # no window, no Dock icon
+agent-browser open https://example.com
+agent-chromium status                     # shows the pid; stop it with: kill <pid>
 ```
 
-`brew trust` is Homebrew's opt-in for third-party taps. `agent-chromium setup` points agent-browser
-at this browser (it writes `~/.agent-browser/config.json` only if you don't have one yet) and then
-asks, one at a time, whether to install the agent skill for the agents it finds. It installs
-nothing unasked. Homebrew installs agent-browser as a dependency; on a Mac it has no prebuilt
-package for, it compiles it, which takes a few minutes.
+Only one of the two can run at a time, since they share the profile. Headless, there's no toolbar, so
+Bitwarden can't be unlocked. Not checked yet: whether sites you're logged into in the window stay
+logged in headless.
 
-Try it:
+### Chrome Web Store
 
-```sh
-agent-browser open https://example.com    # opens a tab in the Agent-Chromium window
-agent-chromium status                     # running? on which port?
-```
+ungoogled-chromium can't install from the Chrome Web Store by itself.
+[chromium-web-store](https://github.com/NeverDecaf/chromium-web-store) adds that: open an extension's
+store page and click Add to Chromium.
 
-## How it works
+Extensions update differently than in Chrome, which updates them silently. Here nothing updates on
+its own:
 
-- **One browser, one profile, shared.** Your logins, cookies and Bitwarden live in
-  `~/Library/Application Support/Agent-Chromium`. You use the app like any browser; agents attach
-  to the same running browser.
-- **Agents get their own tabs.** Each agent-browser session opens a new tab and only sees its own
-  tabs. Your tabs are never navigated. Agent tabs stay open after the agent is done, so you can see
-  what it did.
-- **Started on demand.** If the browser isn't running, the first agent-browser command starts it.
-  Nothing runs at login.
-- **First launch** opens the search engine settings: ungoogled-chromium ships with no search
-  engine, and the choice can't be preset. Pick one once; it sticks.
-- **Extensions:** Bitwarden (pinned to the toolbar) and
-  [chromium-web-store](https://github.com/NeverDecaf/chromium-web-store), which lets you install
-  extensions from the Chrome Web Store. It checks those for updates and shows a count on its
-  toolbar icon; click it to update, then confirm.
+- **Bitwarden and chromium-web-store** come with the app and update with `brew upgrade --cask
+  agent-chromium`.
+- **Extensions you install from the store** are checked by chromium-web-store, which shows a count
+  on its toolbar icon. Click it to update, then confirm. The icon comes pinned to the toolbar so the
+  count stays in view; unpin it and you won't see updates waiting.
+
+### Bitwarden
+
+Bitwarden is the password manager most of the people I support already use, so it comes installed
+and pinned to the toolbar. Chromium's own password manager is off, so the two don't compete.
+
+Suggested settings (Bitwarden → Settings):
+
+- **Account security → Vault timeout:** a short one, such as 15 minutes, with the action **Lock**.
+  While the vault is unlocked, anything that controls the browser could reach it, agents included.
+- **Autofill → Autofill on page load:** leave it off, so pages your agents visit aren't filled
+  without you.
+
+### Your changes stay
+
+Changes you make in Chromium persist: settings, extensions you install, and anything else you
+change. Upgrades replace the app, never the profile, so all of it stays as it is after `brew upgrade`;
+the settings above only seed a new profile.
+
+The exception is the packaged extensions, Bitwarden and chromium-web-store. They are part of the app
+and load on every start, so they can't be uninstalled. You can disable them, though, and that sticks.
 
 ## Security
 
-- **While Agent-Chromium runs, any program on this Mac can control it** through the
-  remote-debugging port on `127.0.0.1:9222`, including your logged-in sessions. That is how agents
-  connect. The port is not reachable from the network. Quit the app when your agents are done with
-  it. To run it without the port, start it from a terminal with
+- **While Agent-Chromium runs, any program on this Mac can control it** through the remote-debugging
+  port on `127.0.0.1:9222`, logged-in sessions included. That's how agents connect. The port isn't
+  reachable from the network. Quit the app when your agents are done. To start it without the port:
   `AGENT_CHROMIUM_NO_DEBUG=1 agent-chromium`.
-- **The app is signed ad hoc, not with a Developer ID.** Renaming the app breaks upstream's
-  signature, so the build checks that signature first (the upstream DMG must be signed by
-  ungoogled-chromium's Developer ID team) and then re-signs. The cask clears Homebrew's quarantine
-  flag so Gatekeeper lets it open.
-- **Expect a keychain prompt** ("Chromium Safe Storage") after each upgrade, because the new build
-  has a new signature; choose Always Allow. If you also use ungoogled-chromium, you get it on the
-  first launch too: both browsers use that same keychain item, though their profiles stay separate.
+- **The app isn't signed with an Apple Developer ID.** The build checks ungoogled-chromium's own
+  signature and then re-signs the renamed app ad hoc. The cask clears Homebrew's quarantine flag, so
+  macOS opens it without a warning. Install it with Homebrew; a zip downloaded by hand gets blocked.
+- **Expect a keychain prompt** ("Chromium Safe Storage") after each upgrade; choose Always Allow. If
+  you also use ungoogled-chromium, it appears on the first launch too: both use that keychain item,
+  though their profiles stay separate.
 
-## Updating and removing
+## More
 
-```sh
-brew upgrade --cask agent-chromium              # new browser and bundled extensions; profile kept
-brew uninstall --cask agent-chromium            # removes the app, keeps your profile
-brew uninstall --cask --zap agent-chromium      # also deletes the profile and installed skills
-```
-
-Bitwarden and chromium-web-store come with the app and update with it.
-
-## Building
-
-Maintainer notes. Releases are repackaged, not compiled: the latest signed upstream DMG goes in, a
-zip per architecture comes out. Needs `gh`.
-
-```sh
-scripts/build-app.sh          # download, verify, repackage: dist/Agent-Chromium-<ver>-<arch>.zip
-scripts/smoke-test.sh --app build/arm64/Agent-Chromium.app   # throwaway-profile test, ~25 s
-scripts/release.sh            # put the zips' checksums into the cask (dry run)
-scripts/release.sh --publish  # create the GitHub release; then commit and push the cask
-```
-
-For a local install before publishing, create a dev tap once
-(`brew tap-new local/agent-chromium --no-git && brew trust local/agent-chromium`); `build-app.sh`
-copies a cask pointing at the local zips into it, then
-`brew install --cask local/agent-chromium/agent-chromium`. To re-release the same upstream build
-with changes of our own, build with `--revision 1` (then 2, …): the version becomes `<ver>_1`.
-`--version <ver>` builds a specific upstream release instead of the latest.
-
-| Path | What |
-|---|---|
-| `Casks/agent-chromium.rb` | the cask (the only file Homebrew reads) |
-| `extensions/*.lock` | bundled extensions, pinned by URL and sha256 |
-| `launcher/` | launcher stub and script (flags, profile, `agent-chromium` CLI), `setup.sh` |
-| `prefs/initial_preferences.json` | settings seeded into a new profile |
-| `skills/agent-chromium/` | the skill installed into agents |
-| `scripts/` | build, smoke test, release, and `guarded-run.sh` for first runs of new builds |
+- [Updating and uninstalling](docs/uninstall.md)
+- [Building it yourself](docs/building.md), from a clone or a fork
 
 ## License
 
-The code in this repository is MIT licensed, see [LICENSE](LICENSE). The release zips also contain
+The code in this repository is MIT licensed, see [LICENSE](LICENSE). The app also contains
 third-party software under its own licenses (BSD-3-Clause, GPL-3.0, MIT), listed in
 [THIRD_PARTY.md](THIRD_PARTY.md).
