@@ -15,16 +15,15 @@ The zips contain one thing: **ungoogled-chromium (macOS)**, renamed and re-signe
 
 ## Fetched by the setup script, not redistributed
 
-`scripts/setup-agent-browser.sh` downloads these from their own GitHub releases onto the user's
-machine and unpacks them into `~/.agent-chromium/extensions`:
+`scripts/setup-agent-browser.sh` downloads these onto the user's machine as the CRX files their
+publishers ship, unchanged, into `~/.agent-chromium/extensions`, and has Chromium install them:
 
-- **Bitwarden browser extension**, <https://github.com/bitwarden/clients>, release
-  `browser-v<version>`, asset `dist-chrome-<version>.zip`. GPL-3.0. The script adds a `key` field to
-  `manifest.json` (our own public key, which fixes the extension ID) and removes the reserved
-  `_metadata` folder, which Chromium refuses in unpacked extensions. Bitwarden is a trademark of
-  Bitwarden Inc.; this project is not affiliated with or endorsed by Bitwarden.
+- **Bitwarden browser extension**, from the Chrome Web Store (ID `nngceckbapebfimnlniiiahkandclblb`),
+  the same file Chrome downloads, checked against the sha256 the store's update check reports.
+  GPL-3.0, source at <https://github.com/bitwarden/clients>. Bitwarden is a trademark of Bitwarden
+  Inc.; this project is not affiliated with or endorsed by Bitwarden.
 - **chromium-web-store**, <https://github.com/NeverDecaf/chromium-web-store>, release `v<version>`,
-  the `.crx`. MIT. Unpacked as is.
+  the `.crx`, checked against GitHub's digest. MIT.
 
 ## Installed by Homebrew as a dependency
 

@@ -1,9 +1,10 @@
 # https://github.com/NeverDecaf/chromium-web-store — Web Store install/update UI for ungoogled-chromium (MIT)
 # Resolved at setup time: the newest release whose tag starts with TAG_PREFIX, and in it the
 # asset matching ASSET. The download is checked against the sha256 digest GitHub records for it.
-# No KEY: the CRX's manifest already carries one, so the ID (ocaahdebbfolfmndjeplogmgcagdmblk)
-# is fixed wherever the unpacked copy lives.
+# ID is fixed by the key inside the CRX.
 NAME="chromium-web-store"
+ID="ocaahdebbfolfmndjeplogmgcagdmblk"
+SOURCE="github"
 REPO="NeverDecaf/chromium-web-store"
 TAG_PREFIX="v"
 ASSET='^Chromium\.Web\.Store\.crx$'

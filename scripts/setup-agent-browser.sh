@@ -1,48 +1,64 @@
 #!/bin/bash
-# Set up ~/.agent-chromium and wire agent-browser to it. Everything the browser needs at launch
-# lives in that one folder; agent-browser reads it through a symlink.
+# Set up ~/.agent-chromium and wire agent-browser to it. The browser's profile is the app's own
+# data folder, so the app opened from Finder and the app launched by agent-browser are one browser.
 #
-#   scripts/setup-agent-browser.sh [--app <path>] [--dir <path>] [--no-config] [--force]
-#                                  [--skills ask|yes|no]
+#   scripts/setup-agent-browser.sh [--app <path>] [--dir <path>] [--profile <path>] [--no-config]
+#                                  [--force] [--skills ask|yes|no] [--welcome|--no-welcome]
 #
-#   --app <path>    the app to point at (default /Applications/Agent-Chromium.app; a build/<arch>
-#                   app works for testing)
-#   --dir <path>    our folder (default ~/.agent-chromium)
-#   --no-config     install extensions, profile and skills but leave the configs alone
-#   --force         reinstall extensions even when the installed version is the latest
-#   --skills        install the agent skill: ask (default on a terminal), yes, or no (default
-#                   otherwise). Never installed unasked; an existing copy is refreshed.
+#   --app <path>      the app to point at (default /Applications/Agent-Chromium.app; a build/<arch>
+#                     app works for testing)
+#   --dir <path>      our folder (default ~/.agent-chromium)
+#   --profile <path>  the profile folder (default ~/Library/Application Support/Agent-Chromium, the
+#                     app's own data folder, which a Finder launch uses too)
+#   --no-config       install extensions, profile and skills but leave the configs alone
+#   --force           reinstall extensions even when the installed version is the latest
+#   --skills          install the agent skill: ask (default on a terminal), yes, or no (default
+#                     otherwise). Never installed unasked; an existing copy is refreshed.
+#   --welcome         open the welcome page in the browser at the end (default: only when the
+#                     profile was just created); --no-welcome never does
 #
 # What it sets up, idempotently:
 #
-#   <dir>/extensions/<name>/     each extensions/<name>.lock, unpacked. The newest matching
-#                                GitHub release is resolved at run time (so every run brings the
-#                                latest), the download is checked against the sha256 digest
-#                                GitHub records for the asset, the reserved _metadata dir is
-#                                dropped, and KEY (if any) is written into manifest.json so the
-#                                extension ID is fixed (unpacked IDs otherwise hash the path).
-#   <dir>/extensions/<name>.version   the installed version; a run that resolves the same version
-#                                skips the download. Offline, what is installed is kept.
-#   <dir>/profiles/default/      the persistent profile. Seeded from prefs/initial_preferences.json
-#                                only when it has no Default/ yet (an existing profile is yours).
-#   <dir>/config.json            executablePath, profile, extensions, args, headed. An existing
-#                                file with different content is backed up to config.json.bak-<time>.
+#   <dir>/extensions/<name>-<version>.crx   each extensions/<name>.lock, as a CRX. The newest
+#                                version is resolved at run time (Chrome Web Store update check, or
+#                                GitHub release), the download is checked against the sha256 the
+#                                source records for it, and older versions are deleted.
+#   <profile>/External Extensions/<id>.json   points Chromium at the CRX. Chromium installs it
+#                                into the profile on its next start, as an ordinary installed
+#                                extension, and updates it when the version here goes up. It
+#                                arrives switched off: macOS Chromium asks once, per extension,
+#                                to enable anything that did not come from the store.
+#   <profile>/Default/Preferences   seeded from prefs/initial_preferences.json only when the
+#                                profile has no Default/ yet (an existing profile is yours). The
+#                                "First Run" marker is created with it, so a Dock launch skips
+#                                ungoogled-chromium's first-run page.
+#   <dir>/welcome.html           the welcome page (prefs/welcome.html): the few settings Chromium
+#                                will not let us preset, opened in the browser once the profile
+#                                is new, with the pages it names in the next tabs.
+#   <dir>/bin/chromium           what agent-browser launches: drops two flags agent-browser always
+#                                adds, then runs the app (see the script for which and why).
+#   <dir>/bin/check              tells whether the browser is closed, launched by agent-browser,
+#                                or opened by the user (which agent-browser cannot drive); --quit
+#                                quits a user-opened one so the next command can relaunch it.
+#   <dir>/config.json            executablePath, profile, args, headed. An existing file with
+#                                different content is backed up to config.json.bak-<time>.
 #   ~/.agent-browser/config.json symlink to <dir>/config.json (a regular file there is backed up).
 #   agent skill (opt-in, last)   skills/agent-chromium into ~/.agents/skills (Codex and most
 #                                agents), ~/.claude/skills (Claude Code), and Claude Desktop
 #                                (opens a .skill file in the app, which shows its install screen).
 #
 # Nothing starts the browser; agent-browser launches it per session (`agent-browser open <url>`).
-# Extensions force a visible window: Chromium does not run content scripts headless.
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 app="/Applications/Agent-Chromium.app"
 dir="$HOME/.agent-chromium"
+profile="$HOME/Library/Application Support/Agent-Chromium"
 write_config=1
 force=0
 skills="auto"
+welcome="auto"
 
 log() { printf '==> %s\n' "$*" >&2; }
 say() { printf '  %s\n' "$*" >&2; }
@@ -53,11 +69,14 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --app)       app="${2%/}"; shift 2 ;;
     --dir)       dir="${2%/}"; shift 2 ;;
+    --profile)   profile="${2%/}"; shift 2 ;;
     --no-config) write_config=0; shift ;;
     --force)     force=1; shift ;;
     --skills)    skills="${2:-}"; shift 2 ;;
     --skills=*)  skills="${1#*=}"; shift ;;
-    -h|--help)   sed -n '2,36p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --welcome)   welcome="yes"; shift ;;
+    --no-welcome) welcome="no"; shift ;;
+    -h|--help)   sed -n '2,50p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *)           die "unknown argument: $1" ;;
   esac
 done
@@ -66,33 +85,51 @@ case "$skills" in
   ask|yes|no) ;;
   *) die "--skills takes ask, yes or no" ;;
 esac
-for tool in curl shasum unzip zip plutil od python3; do need "$tool"; done
+for tool in curl shasum zip plutil python3; do need "$tool"; done
 
 chromium="$app/Contents/MacOS/Chromium"
 [ -x "$chromium" ] || die "no browser at $chromium (install the agent-chromium cask or pass --app)"
+app_version="$(plutil -extract CFBundleShortVersionString raw "$app/Contents/Info.plist" 2>/dev/null || echo 0)"
 command -v agent-browser >/dev/null 2>&1 || say "agent-browser is not on PATH yet (brew install agent-browser)"
 
 ext_root="$dir/extensions"
-profile="$dir/profiles/default"
-downloads="$dir/downloads"
-mkdir -p "$ext_root" "$profile" "$downloads"
+external="$profile/External Extensions"
+mkdir -p "$ext_root" "$dir/bin" "$external"
 
 # --- Extensions ---------------------------------------------------------------------------------
-# Each extensions/<name>.lock is a shell fragment: NAME, REPO (GitHub owner/repo), TAG_PREFIX
-# (which of the repo's releases count), ASSET (regex for the asset to install), and optionally
-# ROOT (subdirectory inside the archive that holds manifest.json) and KEY (public key written into
-# manifest.json, which fixes the extension ID).
-crx_to_zip() {  # CRX3 = "Cr24" + u32 version + u32 header length + header + zip
-  local crx="$1" zip="$2" header_len
-  [ "$(head -c 4 "$crx")" = "Cr24" ] || die "not a CRX file: $crx"
-  header_len="$(od -An -t u4 -j 8 -N 4 "$crx" | tr -d ' ')"
-  tail -c +$((12 + header_len + 1)) "$crx" > "$zip"
+# Each extensions/<name>.lock is a shell fragment: NAME, ID (the extension ID, which names the
+# External Extensions file), SOURCE, and per source:
+#   webstore   nothing else: the Chrome Web Store's update check for ID gives version, URL and sha256
+#   github     REPO (owner/repo), TAG_PREFIX (which of the repo's releases count), ASSET (regex for
+#              the .crx asset); GitHub's digest for the asset gives the sha256
+
+# <id>: prints "version url sha256" from the Web Store's update check, or nothing when it cannot be
+# reached. The same request Chrome makes; the store answers for extensions it lists.
+resolve_webstore() {
+  local xml
+  xml="$(mktemp)"
+  curl -fsSL --max-time 20 -o "$xml" \
+    "https://clients2.google.com/service/update2/crx?response=updatecheck&acceptformat=crx3&prodversion=$app_version&x=id%3D$1%26installsource%3Dondemand%26uc" \
+    2>/dev/null || { rm -f "$xml"; return 0; }
+  python3 -I - "$xml" <<'PY'
+import sys, xml.etree.ElementTree as ET
+try:
+    root = ET.parse(sys.argv[1]).getroot()
+except Exception:
+    sys.exit(0)
+ns = {"u": "http://www.google.com/update2/response"}
+for uc in root.iter("{http://www.google.com/update2/response}updatecheck"):
+    if uc.get("status") == "ok" and uc.get("codebase") and uc.get("hash_sha256"):
+        print(uc.get("version"), uc.get("codebase"), uc.get("hash_sha256"))
+        break
+PY
+  rm -f "$xml"
 }
 
 # <repo> <tag prefix> <asset regex>: prints "version url sha256" for the newest matching
 # release, or nothing when GitHub cannot be reached. A token in GITHUB_TOKEN or GH_TOKEN lifts
 # the anonymous rate limit (60 requests an hour per IP).
-resolve_latest() {
+resolve_github() {
   local auth=() json
   local token="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
   [ -z "$token" ] || auth=(-H "Authorization: Bearer $token")
@@ -120,90 +157,132 @@ PY
   rm -f "$json"
 }
 
-extension_dirs=()
+# <crx> <id> <version>: the External Extensions entry. Chromium reads these on every start.
+write_external() {
+  printf '{"external_crx": "%s", "external_version": "%s"}\n' "$1" "$3" > "$external/$2.json"
+}
+
 for lock in "$repo"/extensions/*.lock; do
   [ -f "$lock" ] || continue
-  NAME="" REPO="" TAG_PREFIX="" ASSET="" ROOT="" KEY=""
+  NAME="" ID="" SOURCE="" REPO="" TAG_PREFIX="" ASSET=""
   # shellcheck disable=SC1090
   . "$lock"
-  [ -n "$NAME" ] && [ -n "$REPO" ] && [ -n "$ASSET" ] || die "incomplete lock: $lock"
-  dest="$ext_root/$NAME"
+  [ -n "$NAME" ] && [ -n "$ID" ] && [ -n "$SOURCE" ] || die "incomplete lock: $lock"
   version_file="$ext_root/$NAME.version"
-  extension_dirs+=("$dest")
   installed="$(cat "$version_file" 2>/dev/null || true)"
+  installed_crx="$ext_root/$NAME-$installed.crx"
+  # The unpacked copy of the previous layout is not used any more.
+  [ -d "$ext_root/$NAME" ] && rm -rf "${ext_root:?}/${NAME:?}"
 
-  read -r VERSION URL SHA256 <<<"$(resolve_latest "$REPO" "$TAG_PREFIX" "$ASSET")" || true
+  case "$SOURCE" in
+    webstore) resolved="$(resolve_webstore "$ID")"; where="the Chrome Web Store" ;;
+    github)   [ -n "$REPO" ] && [ -n "$ASSET" ] || die "incomplete lock: $lock"
+              resolved="$(resolve_github "$REPO" "$TAG_PREFIX" "$ASSET")"; where="GitHub ($REPO)" ;;
+    *)        die "$lock: SOURCE must be webstore or github" ;;
+  esac
+  read -r VERSION URL SHA256 <<<"$resolved" || true
   if [ -z "${VERSION:-}" ]; then
-    if [ -n "$installed" ] && [ -f "$dest/manifest.json" ]; then
-      log "Extension $NAME: cannot reach GitHub, keeping installed $installed"
+    if [ -n "$installed" ] && [ -f "$installed_crx" ]; then
+      log "Extension $NAME: cannot reach $where, keeping installed $installed"
+      write_external "$installed_crx" "$ID" "$installed"
       continue
     fi
-    die "$NAME: cannot resolve the latest release of $REPO (offline? rate-limited?)"
+    die "$NAME: cannot resolve the latest version from $where (offline? rate-limited?)"
   fi
-  [ -n "${SHA256:-}" ] || die "$NAME: GitHub records no sha256 digest for $URL; refusing to install unverified"
+  [ -n "${SHA256:-}" ] || die "$NAME: $where records no sha256 for $URL; refusing to install unverified"
 
-  if [ "$force" -eq 0 ] && [ "$installed" = "$VERSION" ] && [ -f "$dest/manifest.json" ]; then
+  crx="$ext_root/$NAME-$VERSION.crx"
+  if [ "$force" -eq 0 ] && [ "$installed" = "$VERSION" ] && [ -f "$crx" ]; then
     log "Extension $NAME $VERSION is the latest, already installed"
+    write_external "$crx" "$ID" "$VERSION"
     continue
   fi
   log "Extension $NAME $VERSION${installed:+ (installed: $installed)}"
-
-  archive="$downloads/$NAME-$VERSION.${URL##*.}"
-  if [ ! -f "$archive" ]; then
-    say "downloading $URL"
-    curl -fsSL -o "$archive.part" "$URL" && mv "$archive.part" "$archive"
-  fi
-  printf '%s  %s\n' "$SHA256" "$archive" | shasum -a 256 -c - >/dev/null \
-    || die "sha256 mismatch for $archive against GitHub's digest (delete it to re-download)"
-
-  zip="$archive"
-  case "$archive" in
-    *.crx) zip="${archive%.crx}.zip"; crx_to_zip "$archive" "$zip" ;;
-  esac
-
-  rm -rf "${dest:?}"
-  rm -f "${version_file:?}"
-  mkdir -p "$dest"
-  unzip -q -o "$zip" -d "$dest"
-  if [ -n "$ROOT" ]; then
-    [ -f "$dest/$ROOT/manifest.json" ] || die "$NAME: no manifest.json under $ROOT"
-    tmp="$dest.tmp"; mv "$dest/$ROOT" "$tmp"; rm -rf "${dest:?}"; mv "$tmp" "$dest"
-  fi
-  [ -f "$dest/manifest.json" ] || die "$NAME: manifest.json not at the archive root; set ROOT in $lock"
-  # Chromium refuses to load an unpacked extension that contains a reserved "_metadata" dir.
-  rm -rf "${dest:?}/_metadata"
-  if [ -n "$KEY" ]; then
-    plutil -replace key -string "$KEY" "$dest/manifest.json" || die "$NAME: could not add key to manifest.json"
-  fi
+  say "downloading $URL"
+  curl -fsSL -o "$crx.part" "$URL"
+  printf '%s  %s\n' "$SHA256" "$crx.part" | shasum -a 256 -c - >/dev/null \
+    || { rm -f "$crx.part"; die "sha256 mismatch for $URL against the sha256 $where records"; }
+  [ "$(head -c 4 "$crx.part")" = "Cr24" ] || { rm -f "$crx.part"; die "$NAME: $URL is not a CRX file"; }
+  mv "$crx.part" "$crx"
   printf '%s\n' "$VERSION" > "$version_file"
-  # Older downloads of this extension are no longer needed.
-  find "$downloads" -maxdepth 1 -name "$NAME-*" ! -name "$NAME-$VERSION.*" -delete
-  say "installed $dest"
+  write_external "$crx" "$ID" "$VERSION"
+  # Older versions of this extension are no longer needed.
+  find "$ext_root" -maxdepth 1 -name "$NAME-*.crx" ! -name "$NAME-$VERSION.crx" -delete
+  say "installed $crx"
 done
 
 # --- Profile ------------------------------------------------------------------------------------
 # Seeded once: Chromium adopts whatever Default/Preferences holds the first time it opens a data
 # dir (for keys outside its tamper protection; the toolbar pins are). After that the profile is
 # the user's and is never touched again.
+seeded=0
 if [ -d "$profile/Default" ]; then
   log "Profile $profile exists, left as is"
 else
   log "Seeding profile $profile"
   mkdir -p "$profile/Default"
   cp "$repo/prefs/initial_preferences.json" "$profile/Default/Preferences"
+  # Without this marker a Dock launch shows chrome://ungoogled-first-run; the welcome page
+  # replaces it. (agent-browser launches pass --no-first-run anyway.)
+  touch "$profile/First Run"
+  seeded=1
 fi
+cp "$repo/prefs/welcome.html" "$dir/welcome.html"
+
+# --- bin ----------------------------------------------------------------------------------------
+# agent-browser cannot be told to leave these two flags out, and Chromium has no way to cancel a
+# flag once given, so the config points agent-browser at this script instead of the binary.
+cat > "$dir/bin/chromium" <<EOF
+#!/bin/sh
+# Launched by agent-browser in place of the app (written by setup-agent-browser.sh). It drops:
+#   --use-mock-keychain     agent-browser's fixed fake key for cookies. The app opened from Finder
+#                           uses the real keychain; with two keys, each launch loses the other's
+#                           cookies. The real keychain is also the stronger of the two.
+#   --disable-default-apps  makes Chromium skip the External Extensions folder, which is how the
+#                           extensions get installed.
+for a in "\$@"; do
+  case "\$a" in --use-mock-keychain|--disable-default-apps) ;; *) set -- "\$@" "\$a" ;; esac
+  shift
+done
+exec "$chromium" "\$@"
+EOF
+chmod +x "$dir/bin/chromium"
+
+cat > "$dir/bin/check" <<EOF
+#!/bin/sh
+# Is Agent-Chromium's profile in use, and by whom? (written by setup-agent-browser.sh)
+#   closed   nothing has it: agent-browser's next command launches the browser
+#   agent    launched by agent-browser (has a debugging port): drive it
+#   user     opened by the user, from Finder or the Dock: no debugging port, and the profile is
+#            locked, so agent-browser's launch fails. Exit status 1.
+#   check --quit   quits a user-opened browser (a normal Quit; its tabs come back on the next
+#                  launch if "Continue where you left off" is set) and waits for the lock to go.
+profile="$profile"
+lock="\$profile/SingletonLock"
+pid="\$(readlink "\$lock" 2>/dev/null | sed 's/.*-//')"
+if [ -z "\$pid" ] || ! kill -0 "\$pid" 2>/dev/null; then echo closed; exit 0; fi
+port="\$(head -n 1 "\$profile/DevToolsActivePort" 2>/dev/null)"
+# The port file outlives the browser that wrote it, so it has to answer.
+if [ -n "\$port" ] && curl -sf --max-time 2 "http://127.0.0.1:\$port/json/version" >/dev/null 2>&1; then
+  echo agent; exit 0
+fi
+if [ "\${1:-}" != "--quit" ]; then echo user; exit 1; fi
+osascript -e 'quit app id "org.agent-chromium.browser"' >/dev/null
+for _ in \$(seq 1 60); do [ -L "\$lock" ] || { echo closed; exit 0; }; sleep 0.5; done
+echo "still open: the browser did not quit (a dialog may be waiting)" >&2; exit 1
+EOF
+chmod +x "$dir/bin/check"
+log "Wrote $dir/bin/chromium and $dir/bin/check"
 
 # --- Config -------------------------------------------------------------------------------------
-if [ "$write_config" -eq 1 ]; then
-  config="$dir/config.json"
-  new="$(python3 -I - "$chromium" "$profile" "${extension_dirs[@]}" <<'PY'
+config="$dir/config.json"
+new="$(python3 -I - "$dir/bin/chromium" "$profile" <<'PY'
 import json, sys
-chromium, profile, *exts = sys.argv[1:]
+chromium, profile = sys.argv[1:]
 print(json.dumps({
     "$schema": "https://agent-browser.dev/schema.json",
     "executablePath": chromium,
     "profile": profile,
-    "extensions": exts,
     # --extension-mime-request-handling: lets chromium-web-store (and the user) install CRX
     # files; ungoogled-chromium downloads them as plain files otherwise. A chrome://flags entry,
     # so it cannot live in preferences.
@@ -215,6 +294,7 @@ print(json.dumps({
 }, indent=2))
 PY
 )"
+if [ "$write_config" -eq 1 ]; then
   if [ -f "$config" ] && [ "$(cat "$config")" != "$new" ]; then
     backup="$config.bak-$(date +%Y%m%d-%H%M%S)"
     cp "$config" "$backup"
@@ -292,4 +372,35 @@ else
   say "Claude Desktop: skipped (re-run with --skills yes to install)"
 fi
 
+# --- Welcome page -------------------------------------------------------------------------------
+# Opened through agent-browser with this config (whether or not it was written: a temp copy
+# otherwise), on the default session, so the browser the user sees is the one agents will use.
+# The welcome page gets a tab first, then the three chrome:// pages it names, then back to it.
+[ "$welcome" = "auto" ] && { [ "$seeded" -eq 1 ] && welcome="yes" || welcome="no"; }
+if [ "$welcome" = "yes" ]; then
+  if ! command -v agent-browser >/dev/null 2>&1; then
+    say "welcome page: agent-browser is not on PATH; open $dir/welcome.html in Agent-Chromium yourself"
+  else
+    if [ "$write_config" -eq 1 ]; then
+      welcome_config="$dir/config.json"
+    else
+      welcome_config="$(mktemp -t agent-chromium-welcome).json"
+      printf '%s\n' "$new" > "$welcome_config"
+    fi
+    log "Opening the welcome page in Agent-Chromium"
+    if agent-browser --config "$welcome_config" open "file://$dir/welcome.html" >/dev/null 2>&1; then
+      for url in chrome://extensions chrome://settings/onStartup chrome://settings/search; do
+        agent-browser --config "$welcome_config" tab new "$url" >/dev/null 2>&1 || true
+      done
+      agent-browser --config "$welcome_config" tab t1 >/dev/null 2>&1 || true
+      say "the browser is open on the welcome page; the settings it names are in the next tabs"
+      [ "$write_config" -eq 1 ] || say "(launched with the temporary config $welcome_config)"
+    else
+      say "could not launch the browser (is it already open from the Dock? quit it and re-run with --welcome)"
+    fi
+  fi
+fi
+
 log "Done. Try:  agent-browser open https://example.com"
+say "The first time, switch Bitwarden and Chromium Web Store on in chrome://extensions:"
+say "Chromium asks once for extensions that did not come from the store. $dir/welcome.html has the details."

@@ -27,11 +27,11 @@ set up on the user's machine by `scripts/setup-agent-browser.sh`.
 - A zip is only rebuilt when something that goes into it changed. A rebuild never gives the same
   bytes, so the release checksums would change for nothing. `--force` rebuilds anyway.
 
-The smoke test checks the bundle, then runs the setup script into a temp folder (so it downloads the
-extensions), launches the app through agent-browser with a config pointing at that folder, and
-checks the profile, the extensions and the tabs, all on its own session. It can run next to your real
-Agent-Chromium. The x86_64 build runs under Rosetta. `scripts/smoke-test.sh --help` lists what it
-covers.
+The smoke test checks the bundle, then runs the setup script into temp folders (so it downloads the
+extensions and seeds a throwaway profile), launches the app through agent-browser with a config
+pointing at them, and checks the launch flags, the extensions Chromium installs, the tabs and the
+profile after quit, all on its own session. It can run next to your real Agent-Chromium. The x86_64
+build runs under Rosetta. `scripts/smoke-test.sh --help` lists what it covers.
 
 ## Installing your build
 
@@ -67,8 +67,8 @@ The repository has to be named `homebrew-<name>` for `brew tap <you>/<name>` to 
 |---|---|
 | `Casks/agent-chromium.rb` | the cask (the only file Homebrew reads) |
 | `scripts/build-app.sh` | the build: the only thing that goes into the zips besides the DMG |
-| `scripts/setup-agent-browser.sh` | the user-side setup: `~/.agent-chromium`, the config symlink, skills |
-| `extensions/*.lock` | which GitHub release and asset each extension comes from |
+| `scripts/setup-agent-browser.sh` | the user-side setup: `~/.agent-chromium`, the profile's External Extensions, the config symlink, skills |
+| `extensions/*.lock` | where each extension comes from: the Chrome Web Store (by ID) or a GitHub release asset |
 | `prefs/initial_preferences.json` | settings seeded into a new profile |
 | `skills/agent-chromium/` | the skill installed into agents |
 | `scripts/` | also the smoke test, the release script, and `guarded-run.sh` for first runs of new builds |

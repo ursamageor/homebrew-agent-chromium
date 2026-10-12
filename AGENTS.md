@@ -1,8 +1,9 @@
 # agent-chromium — agent guide
 
 This project gives agents a browser of their own: **ungoogled-chromium under its own name**
-(the only change to the app), and a setup script that puts the extensions, a profile and the
-agent-browser config into `~/.agent-chromium`, so agent-browser launches and drives it predictably.
+(the only change to the app), and a setup script that fetches the extensions into
+`~/.agent-chromium`, has Chromium install them into the app's own profile, and writes the
+agent-browser config, so agent-browser and the Dock open one and the same browser.
 
 The package has to live **side by side with ursamageor's daily ungoogled-chromium**
 (`/Applications/Chromium.app`). Out of the box, both use the same app path, bundle ID, and profile

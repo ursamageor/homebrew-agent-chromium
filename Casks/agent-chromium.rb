@@ -50,16 +50,18 @@ cask "agent-chromium" do
   caveats <<~EOS
     Agent-Chromium is plain ungoogled-chromium with its own bundle ID and data folder, so it never
     touches a Chromium.app profile. Nothing is bundled and nothing starts at login: agent-browser
-    launches it, and ~/.agent-chromium/config.json decides the profile, extensions and flags.
+    launches it, and ~/.agent-chromium/config.json decides the profile and flags.
 
-    One step left: build ~/.agent-chromium (latest Bitwarden and chromium-web-store unpacked
-    into extensions/, a seeded profile in profiles/default, config.json, and the
-    ~/.agent-browser/config.json symlink to it), and optionally install the agent-chromium
+    One step left: build ~/.agent-chromium (the latest Bitwarden and chromium-web-store, which
+    Chromium installs into the profile on its first start, the seeded profile, config.json, and
+    the ~/.agent-browser/config.json symlink to it), and optionally install the agent-chromium
     skill into your coding agents (it asks):
 
       "$(brew --repository ursamageor/agent-chromium)/scripts/setup-agent-browser.sh"
 
-    Re-run it any time to update the extensions. Then:
+    It ends by opening the browser on a welcome page with the few settings Chromium will not let
+    us preset (switching the extensions on, startup, search, Bitwarden login). Re-run it any time
+    to update the extensions. Then:
 
       agent-browser open https://example.com
   EOS

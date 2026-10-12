@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Welcome to Agent-Chromium</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f7f9; --card: #ffffff; --ink: #1c1f26; --muted: #5d6470; --line: #e3e6eb;
+    --accent: #2a63d6; --accent-ink: #ffffff; --done: #1f9d55; --code: #eef1f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15171c; --card: #1e2128; --ink: #e8eaee; --muted: #9aa2ad; --line: #2c3139;
+      --accent: #6b9cff; --accent-ink: #0f1a33; --done: #4cc38a; --code: #272b33;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; }
+  main { max-width: 680px; margin: 0 auto; padding: 56px 24px 72px; }
+  .eyebrow { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+  h1 { font-size: 34px; line-height: 1.15; margin: 0 0 14px; letter-spacing: -.01em; }
+  p.lead { font-size: 18px; color: var(--muted); margin: 0 0 36px; }
+  ol.steps { list-style: none; padding: 0; margin: 0; counter-reset: step; }
+  li.step { background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 20px 22px 20px 64px; margin: 0 0 14px; position: relative; transition: opacity .2s; }
+  li.step::before { counter-increment: step; content: counter(step); position: absolute; left: 20px; top: 20px;
+    width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: var(--accent-ink);
+    font-weight: 600; font-size: 15px; display: grid; place-items: center; }
+  li.step.done { opacity: .55; }
+  li.step.done::before { content: "✓"; background: var(--done); color: #fff; }
+  li.step h2 { font-size: 18px; margin: 2px 0 6px; }
+  li.step p { margin: 0 0 12px; color: var(--muted); }
+  li.step p strong { color: var(--ink); font-weight: 600; }
+  .addr { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  code { background: var(--code); border-radius: 6px; padding: 4px 9px; font: 14px/1.4 ui-monospace, "SF Mono", Menlo, monospace; }
+  button.copy { border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 8px;
+    padding: 5px 11px; font: inherit; font-size: 14px; cursor: pointer; }
+  button.copy:hover { border-color: var(--accent); }
+  label.check { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 14px; color: var(--muted); cursor: pointer; }
+  label.check input { width: 16px; height: 16px; accent-color: var(--done); }
+  aside { margin-top: 32px; padding: 18px 22px; border-radius: 14px; background: var(--code); font-size: 15px; }
+  aside h3 { margin: 0 0 8px; font-size: 15px; }
+  aside p { margin: 0 0 8px; color: var(--muted); }
+  footer { margin-top: 28px; font-size: 13px; color: var(--muted); }
+  kbd { font: 13px ui-monospace, "SF Mono", Menlo, monospace; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; }
+</style>
+</head>
+<body>
+<main>
+  <p class="eyebrow">Agent-Chromium</p>
+  <h1>Welcome. Four things to set up, once.</h1>
+  <p class="lead">This is a browser your coding agents can drive, with your logins. Chromium doesn't let
+    these four settings be preset, so they're yours to pick. Each takes a few seconds, and the
+    page for each is open in the tabs next to this one.</p>
+
+  <ol class="steps">
+    <li class="step" data-step="extensions">
+      <h2>Switch on the two extensions</h2>
+      <p>Bitwarden and Chromium Web Store are installed but off: Chromium asks once for extensions that
+        didn't come from its store. Flip <strong>both switches</strong>.</p>
+      <div class="addr"><code>chrome://extensions</code><button class="copy" data-copy="chrome://extensions">Copy address</button></div>
+      <label class="check"><input type="checkbox"> Done</label>
+    </li>
+    <li class="step" data-step="startup">
+      <h2>Bring your tabs back after a restart</h2>
+      <p>Pick <strong>Continue where you left off</strong>. Agents sometimes have to restart the browser;
+        this way nothing you had open is lost.</p>
+      <div class="addr"><code>chrome://settings/onStartup</code><button class="copy" data-copy="chrome://settings/onStartup">Copy address</button></div>
+      <label class="check"><input type="checkbox"> Done</label>
+    </li>
+    <li class="step" data-step="search">
+      <h2>Pick a search engine</h2>
+      <p>ungoogled-chromium ships without one. <strong>DuckDuckGo</strong> is quick and doesn't track you.</p>
+      <div class="addr"><code>chrome://settings/search</code><button class="copy" data-copy="chrome://settings/search">Copy address</button></div>
+      <label class="check"><input type="checkbox"> Done</label>
+    </li>
+    <li class="step" data-step="bitwarden">
+      <h2>Log in to Bitwarden</h2>
+      <p>Click the <strong>shield icon</strong> at the top right and log in; your account's region is picked on
+        that screen. Suggested, in Bitwarden's settings: a vault timeout of 15 minutes with the action
+        <strong>Lock</strong>, and <strong>autofill on page load off</strong>, so pages your agents visit aren't
+        filled without you.</p>
+      <label class="check"><input type="checkbox"> Done</label>
+    </li>
+  </ol>
+
+  <aside>
+    <h3>Two things you may see</h3>
+    <p>A keychain prompt for <strong>Chromium Safe Storage</strong>: click <strong>Always Allow</strong>. That's
+      the key protecting your cookies, and the prompt returns after each upgrade of the browser.</p>
+    <p>A number on the Chromium Web Store icon: extensions you installed from the store have updates
+      waiting. Click it to update.</p>
+  </aside>
+
+  <footer>Done? Quit with <kbd>⌘Q</kbd> or leave the window open; agents open the browser when they
+    need it, and it's the same browser you get from the Dock. This page lives at
+    <code>~/.agent-chromium/welcome.html</code>.</footer>
+</main>
+<script>
+  // Copy buttons: chrome:// links can't be opened from a page, so the address goes to the clipboard.
+  document.querySelectorAll("button.copy").forEach(b => b.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = "Copied, paste it in the address bar"; }
+    catch { b.textContent = "Select the address and copy it"; }
+    setTimeout(() => { b.textContent = "Copy address"; }, 2500);
+  }));
+  // The checkboxes remember themselves, so the page can be reopened later.
+  document.querySelectorAll("li.step").forEach(li => {
+    const box = li.querySelector("input"), key = "done:" + li.dataset.step;
+    const apply = () => li.classList.toggle("done", box.checked);
+    box.checked = localStorage.getItem(key) === "1"; apply();
+    box.addEventListener("change", () => { localStorage.setItem(key, box.checked ? "1" : "0"); apply(); });
+  });
+</script>
+</body>
+</html>
