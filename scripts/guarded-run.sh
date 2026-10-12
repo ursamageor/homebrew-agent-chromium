@@ -4,7 +4,7 @@
 #   scripts/guarded-run.sh [chromium args...]
 #
 # For the first runs of a new build, when the data-dir behavior is unproven: if anything in the
-# launcher or plist patch is wrong, the browser fails with EPERM instead of touching the daily
+# plist patch is wrong, the browser fails with EPERM instead of touching the daily
 # profile. Watch denials with:
 #   log stream --style compact --predicate 'eventMessage CONTAINS "deny" AND eventMessage CONTAINS "Chromium"'
 #

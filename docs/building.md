@@ -11,12 +11,14 @@ test.
 git clone https://github.com/ursamageor/homebrew-agent-chromium
 cd homebrew-agent-chromium
 scripts/build-app.sh          # download, verify, repackage: dist/Agent-Chromium-<ver>-<arch>.zip
-scripts/smoke-test.sh --app build/arm64/Agent-Chromium.app   # throwaway-profile test, ~25 s
+scripts/smoke-test.sh --app build/arm64/Agent-Chromium.app   # throwaway-profile test, ~1 min
 ```
 
 `build-app.sh` downloads the DMG through `gh`, checks it against the sha256 GitHub records for it and
 against ungoogled-chromium's Developer ID signature, and only then changes anything. It renames the
-app, adds the launcher, settings and extensions, re-signs it ad hoc and zips it.
+app, sets its bundle ID and data-folder name in `Info.plist`, re-signs it ad hoc and zips it. That is
+the whole change: everything else (extensions, profile, flags) lives in `~/.agent-chromium` and is
+set up on the user's machine by `scripts/setup-agent-browser.sh`.
 
 - `--arch arm64` or `--arch x86_64` builds one architecture; the default is both.
 - `--version <ver>` builds a specific upstream release instead of the latest.
@@ -25,9 +27,11 @@ app, adds the launcher, settings and extensions, re-signs it ad hoc and zips it.
 - A zip is only rebuilt when something that goes into it changed. A rebuild never gives the same
   bytes, so the release checksums would change for nothing. `--force` rebuilds anyway.
 
-The smoke test runs the built app on a throwaway profile and its own port, so it can run next to
-your real Agent-Chromium. The x86_64 build runs under Rosetta. `scripts/smoke-test.sh --help` lists
-what it covers.
+The smoke test checks the bundle, then runs the setup script into a temp folder (so it downloads the
+extensions), launches the app through agent-browser with a config pointing at that folder, and
+checks the profile, the extensions and the tabs, all on its own session. It can run next to your real
+Agent-Chromium. The x86_64 build runs under Rosetta. `scripts/smoke-test.sh --help` lists what it
+covers.
 
 ## Installing your build
 
@@ -45,7 +49,8 @@ From then on, every `build-app.sh` run copies a cask pointing at the local zips 
 
 The repository has to be named `homebrew-<name>` for `brew tap <you>/<name>` to find it.
 
-1. In `Casks/agent-chromium.rb`, change `url` and `homepage` to your repository.
+1. In `Casks/agent-chromium.rb`, change `url` and `homepage` to your repository, and the tap name in
+   the caveats.
 2. Build, then publish:
 
    ```sh
@@ -61,8 +66,9 @@ The repository has to be named `homebrew-<name>` for `brew tap <you>/<name>` to 
 | Path | What |
 |---|---|
 | `Casks/agent-chromium.rb` | the cask (the only file Homebrew reads) |
-| `extensions/*.lock` | bundled extensions, pinned by URL and sha256 |
-| `launcher/` | launcher stub and script (flags, profile, `agent-chromium` command), `setup.sh` |
+| `scripts/build-app.sh` | the build: the only thing that goes into the zips besides the DMG |
+| `scripts/setup-agent-browser.sh` | the user-side setup: `~/.agent-chromium`, the config symlink, skills |
+| `extensions/*.lock` | which GitHub release and asset each extension comes from |
 | `prefs/initial_preferences.json` | settings seeded into a new profile |
 | `skills/agent-chromium/` | the skill installed into agents |
-| `scripts/` | build, smoke test, release, and `guarded-run.sh` for first runs of new builds |
+| `scripts/` | also the smoke test, the release script, and `guarded-run.sh` for first runs of new builds |

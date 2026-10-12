@@ -1,13 +1,13 @@
 cask "agent-chromium" do
   arch arm: "arm64", intel: "x86_64"
 
-  version "154.0.8037.57-1.1_1"
-  sha256 arm:   "83d1b08b68ff8f245d9990c094d26ad9ae7eecd5ab58413260e0e30f66df2d52",
-         intel: "abf6ad2c060705ae57030775f2b4d5caabcf4b5cadffa26379976fd7ed04f460"
+  version "154.0.8037.97-1.1"
+  sha256 arm:   "474f094cff24ba441ad1e1a2816c4ac057d6a0b7acc189c61a007d58d5752ce7",
+         intel: "1ffcbbbac92a036655e91ca6a5d3c98b38bdb75dcd5e51608329370118197475"
 
   url "https://github.com/ursamageor/homebrew-agent-chromium/releases/download/v#{version}/Agent-Chromium-#{version}-#{arch}.zip"
   name "Agent-Chromium"
-  desc "Chromium for coding agents: ungoogled-chromium, extensions, agent-browser"
+  desc "ungoogled-chromium under its own identity, for coding agents to drive via agent-browser"
   homepage "https://github.com/ursamageor/homebrew-agent-chromium"
 
   livecheck do
@@ -20,10 +20,7 @@ cask "agent-chromium" do
   depends_on macos: :ventura
 
   app "Agent-Chromium.app"
-  binary "#{appdir}/Agent-Chromium.app/Contents/MacOS/Chromium", target: "agent-chromium"
 
-  # The agent-browser config is written by `agent-chromium setup` (see caveats), not here:
-  # postflight steps run in Homebrew's sandbox with a fake $HOME.
   postflight_steps do
     # The bundle is ad-hoc signed; Gatekeeper blocks it while Homebrew's quarantine flag is set.
     run "/usr/bin/xattr", args: ["-cr", "{{appdir}}/Agent-Chromium.app"]
@@ -36,14 +33,14 @@ cask "agent-chromium" do
             signal: ["TERM", "org.agent-chromium.browser"],
             script: {
               executable:   "/usr/bin/pkill",
-              args:         ["-TERM", "-f", "/Agent-Chromium.app/Contents/MacOS/Chromium-bin"],
+              args:         ["-TERM", "-f", "/Agent-Chromium.app/Contents/MacOS/Chromium( |$)"],
               must_succeed: false,
             }
 
   zap trash: [
+    "~/.agent-chromium",
     "~/.agents/skills/agent-chromium",
     "~/.claude/skills/agent-chromium",
-    "~/.codex/skills/agent-chromium",
     "~/Library/Application Support/Agent-Chromium",
     "~/Library/Caches/Agent-Chromium",
     "~/Library/Preferences/org.agent-chromium.browser.plist",
@@ -51,32 +48,19 @@ cask "agent-chromium" do
   ]
 
   caveats <<~EOS
-    Agent-Chromium is one browser with one stable profile that you and your coding agents share.
-    While it runs it keeps a remote-debugging port on 127.0.0.1:9222; agent-browser attaches to
-    it, starting the browser first if needed. Nothing starts at login.
+    Agent-Chromium is plain ungoogled-chromium with its own bundle ID and data folder, so it never
+    touches a Chromium.app profile. Nothing is bundled and nothing starts at login: agent-browser
+    launches it, and ~/.agent-chromium/config.json decides the profile, extensions and flags.
 
-    Bundled extensions: chromium-web-store (enables installs from the Chrome Web Store) and Bitwarden.
+    One step left: build ~/.agent-chromium (latest Bitwarden and chromium-web-store unpacked
+    into extensions/, a seeded profile in profiles/default, config.json, and the
+    ~/.agent-browser/config.json symlink to it), and optionally install the agent-chromium
+    skill into your coding agents (it asks):
 
-    Security hygiene note: while Agent-Chromium is running, debugging port 9222 is open.
-    It's reasonable to quit the app when your agent is done using it.
+      "$(brew --repository ursamageor/agent-chromium)/scripts/setup-agent-browser.sh"
 
-    IMPORTANT: One step left — point agent-browser at this browser. Run:
+    Re-run it any time to update the extensions. Then:
 
-      agent-chromium setup
-
-    This setup script:
-    - writes ~/.agent-browser/config.json (only if you have none)
-    - asks [y/n] whether to install the agent-chromium skill in each of:
-
-      1. ~/.agents/skills (Codex CLI, ChatGPT and Codex desktop, most other agents)
-      2. ~/.claude/skills (Claude Code CLI)
-      3. Claude Desktop (opens the skill in Claude, which shows its install screen)
-
-    Nothing is installed unasked.
-
-    Quick test after setup:
-
-      agent-browser open https://example.com    # opens a tab in your Agent-Chromium window
-      agent-chromium status                     # is it running, on which port
+      agent-browser open https://example.com
   EOS
 end

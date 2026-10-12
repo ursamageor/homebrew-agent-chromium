@@ -3,31 +3,34 @@
 ## Updating
 
 ```sh
-brew upgrade --cask agent-chromium    # the browser and its bundled extensions; your profile is kept
+brew upgrade --cask agent-chromium    # the browser; your profile is kept
 brew upgrade agent-browser            # agent-browser updates on its own schedule
+"$(brew --repository ursamageor/agent-chromium)/scripts/setup-agent-browser.sh"   # the extensions
 ```
 
-A plain `brew upgrade` does both. After a browser upgrade, expect one keychain prompt ("Chromium Safe
-Storage"); choose Always Allow. Extensions you installed from the Chrome Web Store don't update with
-the app: chromium-web-store shows a count on its toolbar icon when updates are waiting.
+A plain `brew upgrade` does the first two. The setup script fetches the latest Bitwarden and
+chromium-web-store releases and replaces the installed copies; everything else it finds in place
+(profile, config, skills) it leaves alone or refreshes. Extensions you installed from the Chrome Web
+Store don't update with any of this: chromium-web-store shows a count on its toolbar icon when
+updates are waiting.
 
 ## Uninstalling
 
-Quit Agent-Chromium first, then pick one:
+Quit Agent-Chromium first (`agent-browser close`), then pick one:
 
 ```sh
-brew uninstall --cask agent-chromium          # removes the app, keeps your profile
-brew uninstall --cask --zap agent-chromium    # also deletes the profile and the installed skills
+brew uninstall --cask agent-chromium          # removes the app, keeps ~/.agent-chromium
+brew uninstall --cask --zap agent-chromium    # also deletes the profile, extensions, config and skills
 ```
 
 `--zap` deletes:
 
-- the profile: `~/Library/Application Support/Agent-Chromium`
-- the cache: `~/Library/Caches/Agent-Chromium`
-- the app's preferences and saved window state in `~/Library/Preferences` and
+- `~/.agent-chromium`: the profile, the extensions, the config and the downloads
+- the skills: `~/.agents/skills/agent-chromium`, `~/.claude/skills/agent-chromium`
+- the app's own data and cache folders, `~/Library/Application Support/Agent-Chromium` and
+  `~/Library/Caches/Agent-Chromium` (only used when the app is opened from Finder, without
+  agent-browser), and its preferences and saved window state in `~/Library/Preferences` and
   `~/Library/Saved Application State` (`org.agent-chromium.browser`)
-- the skills: `~/.agents/skills/agent-chromium`, `~/.claude/skills/agent-chromium`,
-  `~/.codex/skills/agent-chromium`
 
 ## What stays
 
@@ -41,10 +44,7 @@ Neither command removes these:
   brew autoremove                   # dependencies nothing else needs any more
   ```
 
-- **`~/.agent-browser/config.json`**, agent-browser's config. `agent-chromium setup` wrote it if you
-  had none; it still points at the removed app, so agent-browser commands fail until you change it.
-  Delete it if you don't use agent-browser any more, or remove the `agent-chromium` entries.
+- **`~/.agent-browser/config.json`**, the symlink to the deleted config. agent-browser commands fail
+  until you remove it or point it elsewhere: `rm ~/.agent-browser/config.json`.
 - **The skill in Claude Desktop**, if you installed it there. Remove it in Claude's settings.
-- **The "Chromium Safe Storage" keychain item.** ungoogled-chromium uses the same item, so leave it if
-  you have that browser. Otherwise you can delete it in Keychain Access.
 - **The tap.** `brew untap ursamageor/agent-chromium` removes it.

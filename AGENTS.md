@@ -1,8 +1,8 @@
 # agent-chromium — agent guide
 
-This project packages **ungoogled-chromium plus a few extensions** into one neat package for agent
-browser work: a browser that agents (Playwright, CDP, computer-use runs) can install, launch, and drive
-predictably, with the extensions they need already set up.
+This project gives agents a browser of their own: **ungoogled-chromium under its own name**
+(the only change to the app), and a setup script that puts the extensions, a profile and the
+agent-browser config into `~/.agent-chromium`, so agent-browser launches and drives it predictably.
 
 The package has to live **side by side with ursamageor's daily ungoogled-chromium**
 (`/Applications/Chromium.app`). Out of the box, both use the same app path, bundle ID, and profile
@@ -66,9 +66,8 @@ sensitivity: read it (`cat` or `source`) when you need a value; never commit it.
   `~/Library/Application Support/Chromium` or `~/Library/Caches/Chromium`. Test on a copy of the app,
   and when the target data folder is unproven, guard the run (`scripts/guarded-run.sh`, see the isolation doc).
 - **IMPORTANT — build before committing app changes.** The cask pins each zip's sha256, and rebuilds
-  never produce the same bytes. When a change touches anything that goes into the app
-  (`scripts/build-app.sh`, `launcher/`, `prefs/`, `skills/`, `extensions/`, `licenses/`,
-  `THIRD_PARTY.md`), run `scripts/build-app.sh` and then `scripts/release.sh` (dry run, updates
+  never produce the same bytes. When a change touches `scripts/build-app.sh` (the only thing that
+  goes into the app besides the upstream DMG), run `scripts/build-app.sh` and then `scripts/release.sh` (dry run, updates
   `Casks/agent-chromium.rb`) *before* committing. Commit the cask with that change, or with the
   last commit in a series, never as a separate "update checksums" commit afterwards. If the
   cask's version is already published (`gh release list`), build with `--revision <n+1>`: a

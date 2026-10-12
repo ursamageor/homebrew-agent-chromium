@@ -3,16 +3,19 @@
 One install that gives a Mac a fast browser your coding agents can control. It was made first for the
 people I do IT support for, but anyone can use it.
 
-It is two things, installed together with Homebrew:
+It is two things, installed together with Homebrew, plus one setup script:
 
 - [agent-browser](https://github.com/vercel-labs/agent-browser) by Vercel, the command-line tool that
   Claude Code, Codex, Claude Desktop, ChatGPT and other agents use to drive a browser.
-- **Agent-Chromium**, a browser app built from
-  [ungoogled-chromium](https://github.com/ungoogled-software/ungoogled-chromium), repackaged with a few
-  settings and extensions already in place.
+- **Agent-Chromium**, [ungoogled-chromium](https://github.com/ungoogled-software/ungoogled-chromium)
+  under its own name, bundle ID and data folder, so it installs next to any other Chromium or Chrome
+  and never touches their data. Nothing else about the app is changed.
+- **The setup script**, which puts everything the browser needs at launch into `~/.agent-chromium`:
+  the Bitwarden and Chrome Web Store extensions, a profile with a few settings, and the agent-browser
+  config that names them all.
 
-You and your agents share the browser: same window, same logins. Agents work in tabs of their own. It
-installs next to any other Chromium or Chrome and never touches their data.
+agent-browser launches the browser when an agent needs it, with a visible window, so you can watch,
+log in, answer a CAPTCHA or unlock Bitwarden. The profile keeps your logins between sessions.
 
 ## Install
 
@@ -41,69 +44,63 @@ Written so you can hand it to your agent. Needs macOS 13 or later, on Apple Sili
 3. **Setup:**
 
    ```sh
-   agent-chromium setup
+   "$(brew --repository ursamageor/agent-chromium)/scripts/setup-agent-browser.sh"
    ```
 
-   This points agent-browser at Agent-Chromium (it writes `~/.agent-browser/config.json`, only if
-   there is none yet). Then it asks, one at a time, whether to install the agent-chromium skill for
-   each agent it finds. Run by an agent, without a terminal, it installs no skills; with
-   `--skills yes` it installs all of them without asking.
+   This downloads the latest Bitwarden and chromium-web-store releases from GitHub (checked against
+   the checksums GitHub records for them) into `~/.agent-chromium/extensions`, creates the profile in
+   `~/.agent-chromium/profiles/default` with the settings below, writes
+   `~/.agent-chromium/config.json`, and links `~/.agent-browser/config.json` to it (an existing
+   config is backed up first). Then it asks, one at a time, whether to install the agent-chromium
+   skill for each agent it finds. Run by an agent, without a terminal, it installs no skills; with
+   `--skills yes` it installs all of them without asking. Re-run it any time to update the extensions.
 
 4. **Test:**
 
    ```sh
-   agent-browser open https://example.com    # opens a tab in the Agent-Chromium window
-   agent-chromium status                     # running? on which port?
+   agent-browser open https://example.com    # launches Agent-Chromium with that page
+   agent-browser close                       # quits it; the profile keeps everything
    ```
 
 ### After installing (by hand, once)
 
-- **Search engine.** Open Agent-Chromium from Applications or Spotlight. The first time, it opens the
-  search engine settings, because ungoogled-chromium ships with none and the choice can't be preset.
-  Pick **DuckDuckGo**: quick results, and it doesn't track you. The choice sticks.
+- **Search engine.** ungoogled-chromium ships with none and the choice can't be preset. In the
+  Agent-Chromium window, open `chrome://settings/search` and pick **DuckDuckGo**: quick results, and it
+  doesn't track you. The choice sticks.
 - **Bitwarden.** Click the Bitwarden icon in the toolbar and log in. Your account's region (US, EU or
   self-hosted) is picked on the login screen. Then see [Bitwarden settings](#bitwarden) below.
 
 ## What's included
 
 - **agent-browser**, Homebrew's standard package, the same as `brew install agent-browser`. It brings
-  its own dependencies, Node among them, and updates with `brew upgrade`. Only its config file is
-  ours, written by `agent-chromium setup`.
-- **Agent-Chromium** in `/Applications`: ungoogled-chromium with its own name, bundle ID and profile,
-  so it can sit next to another Chromium. It adds:
-  - **settings** for a new profile: no welcome or import screens, no default-browser nagging,
-    Chromium's own password manager and Translate off, Do Not Track on, downloads saved without
-    asking;
-  - **extensions:** Bitwarden and the Chrome Web Store extension (see [Defaults](#defaults));
-  - the **`agent-chromium` command**, which agent-browser uses to find and start the browser.
-- **Your profile**, created on first launch: `~/Library/Application Support/Agent-Chromium/User Data`.
-  Logins, cookies, bookmarks and extensions live there. Upgrades keep it.
+  its own dependencies, Node among them, and updates with `brew upgrade`.
+- **Agent-Chromium** in `/Applications`: ungoogled-chromium with its own name, bundle ID and data
+  folder. No launcher, no bundled extensions, no settings inside the app.
+- **`~/.agent-chromium`**, written by the setup script:
+  - `config.json`, the agent-browser config: which app, which profile, which extensions, which
+    flags. `~/.agent-browser/config.json` is a symlink to it.
+  - `extensions/`: Bitwarden and chromium-web-store, unpacked, loaded on every launch.
+  - `profiles/default/`: your profile. Logins, cookies, bookmarks and extensions you add live there.
+    It starts with these settings: no welcome or import screens, Chromium's own password manager and
+    Translate off, Do Not Track on, downloads saved without asking, both extensions pinned to the
+    toolbar.
 - **Skills**, only where you said yes during setup: `~/.agents/skills/agent-chromium`,
   `~/.claude/skills/agent-chromium`, and Claude Desktop's own skill list.
 
-Nothing starts at login and nothing runs in the background. If the browser isn't running, the first
-agent-browser command starts it.
+Nothing starts at login and nothing runs in the background. agent-browser starts the browser on the
+first command of a session and quits it on `agent-browser close`.
 
 ## Defaults
 
 ### A visible window
 
 The browser runs with a normal window so you can see what your agents do, and step in to log in,
-answer a CAPTCHA or unlock Bitwarden. Agents open tabs of their own and never touch yours; their tabs
-stay open when they're done.
+answer a CAPTCHA or unlock Bitwarden. There is no headless mode with the extensions loaded: Chromium
+doesn't run extensions headless, so agent-browser always opens a window for this config.
 
-For runs where nobody needs to watch, quit Agent-Chromium and start it headless. It uses the same
-profile and port, so agent-browser connects to it the same way:
-
-```sh
-agent-chromium --headless &               # no window, no Dock icon
-agent-browser open https://example.com
-agent-chromium status                     # shows the pid; stop it with: kill <pid>
-```
-
-Only one of the two can run at a time, since they share the profile. Headless, there's no toolbar, so
-Bitwarden can't be unlocked. Not checked yet: whether sites you're logged into in the window stay
-logged in headless.
+One browser at a time: the profile can be open in one browser only, so every agent uses agent-browser's
+default session and shares that window. A second agent-browser session on the same config fails to
+launch.
 
 ### Chrome Web Store
 
@@ -114,8 +111,8 @@ store page and click Add to Chromium.
 Extensions update differently than in Chrome, which updates them silently. Here nothing updates on
 its own:
 
-- **Bitwarden and chromium-web-store** come with the app and update with `brew upgrade --cask
-  agent-chromium`.
+- **Bitwarden and chromium-web-store** update when you re-run the setup script, which fetches the
+  latest release of each.
 - **Extensions you install from the store** are checked by chromium-web-store, which shows a count
   on its toolbar icon. Click it to update, then confirm. The icon comes pinned to the toolbar so the
   count stays in view; unpin it and you won't see updates waiting.
@@ -135,24 +132,25 @@ Suggested settings (Bitwarden → Settings):
 ### Your changes stay
 
 Changes you make in Chromium persist: settings, extensions you install, and anything else you
-change. Upgrades replace the app, never the profile, so all of it stays as it is after `brew upgrade`;
-the settings above only seed a new profile.
+change. The setup script seeds the profile once and never touches it again, and upgrades replace the
+app, never the profile.
 
-The exception is the packaged extensions, Bitwarden and chromium-web-store. They are part of the app
-and load on every start, so they can't be uninstalled. You can disable them, though, and that sticks.
+The exception is Bitwarden and chromium-web-store: `config.json` loads them on every launch, so they
+can't be uninstalled from the browser. Remove them from the `extensions` list in the config instead.
+Disabling them in the browser sticks, too.
 
 ## Security
 
-- **While Agent-Chromium runs, any program on this Mac can control it** through the remote-debugging
-  port on `127.0.0.1:9222`, logged-in sessions included. That's how agents connect. The port isn't
-  reachable from the network. Quit the app when your agents are done. To start it without the port:
-  `AGENT_CHROMIUM_NO_DEBUG=1 agent-chromium`.
+- **While Agent-Chromium runs, any program on this Mac can control it.** agent-browser launches it with
+  a remote-debugging port (a random one, written to `DevToolsActivePort` in the profile), logged-in
+  sessions included. The port isn't reachable from the network. `agent-browser close` quits the
+  browser when your agents are done.
+- **The profile's cookies are not protected by your keychain.** agent-browser launches every browser
+  with a fixed mock key instead of the keychain, so there is no keychain prompt, and anyone who can
+  read `~/.agent-chromium/profiles` can read the cookies. Treat that folder like a password store.
 - **The app isn't signed with an Apple Developer ID.** The build checks ungoogled-chromium's own
   signature and then re-signs the renamed app ad hoc. The cask clears Homebrew's quarantine flag, so
   macOS opens it without a warning. Install it with Homebrew; a zip downloaded by hand gets blocked.
-- **Expect a keychain prompt** ("Chromium Safe Storage") after each upgrade; choose Always Allow. If
-  you also use ungoogled-chromium, it appears on the first launch too: both use that keychain item,
-  though their profiles stay separate.
 
 ## More
 
@@ -161,6 +159,6 @@ and load on every start, so they can't be uninstalled. You can disable them, tho
 
 ## License
 
-The code in this repository is MIT licensed, see [LICENSE](LICENSE). The app also contains
-third-party software under its own licenses (BSD-3-Clause, GPL-3.0, MIT), listed in
-[THIRD_PARTY.md](THIRD_PARTY.md).
+The code in this repository is MIT licensed, see [LICENSE](LICENSE). The app is ungoogled-chromium
+(BSD-3-Clause), and the setup script downloads Bitwarden (GPL-3.0) and chromium-web-store (MIT) from
+their own releases; see [THIRD_PARTY.md](THIRD_PARTY.md).

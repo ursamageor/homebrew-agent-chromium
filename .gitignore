@@ -8,3 +8,6 @@
 # build outputs
 /build/
 /dist/
+
+# browser profiles for config tests (scripts and configs point at them)
+/profiles/

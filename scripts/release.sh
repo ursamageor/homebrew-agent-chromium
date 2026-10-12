@@ -49,14 +49,8 @@ gh_repo="$(sed -nE 's|^  url "https://github.com/([^/]+/[^/]+)/releases/.*|\1|p'
 [ -n "$gh_repo" ] || die "cannot read the GitHub repo from the cask url"
 tag="v$version"
 
-# Release notes: what went into this build, from the locks.
+# Release notes: what went into this build.
 notes="ungoogled-chromium $upstream_version"
-for lock in "$repo"/extensions/*.lock; do
-  NAME="" VERSION=""
-  # shellcheck disable=SC1090
-  . "$lock"
-  notes+=", $NAME $VERSION"
-done
 
 if [ "$publish" -eq 0 ]; then
   echo "dry run; with --publish: gh release create $tag -R $gh_repo (${zips[*]##*/})"

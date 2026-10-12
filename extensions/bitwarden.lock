@@ -1,9 +1,11 @@
 # https://github.com/bitwarden/clients — Bitwarden browser extension, Chrome build (GPL-3.0)
+# Resolved at setup time: the newest release whose tag starts with TAG_PREFIX, and in it the
+# asset matching ASSET. The download is checked against the sha256 digest GitHub records for it.
 NAME="bitwarden"
-VERSION="2026.9.2"
-URL="https://github.com/bitwarden/clients/releases/download/browser-v2026.9.2/dist-chrome-2026.9.2.zip"
-SHA256="b4d5589db564cf50b82c542503e674eb96541805b54d9ab02bf167e5033891ec"
+REPO="bitwarden/clients"
+TAG_PREFIX="browser-v"               # the repo also releases desktop, cli, web under other prefixes
+ASSET='^dist-chrome-[0-9.]+\.zip$'
 # Public key injected into manifest.json: pins the extension ID to nkanlecjgnbjkjanadbbedolemolellk
-# wherever the app lives (unpacked IDs otherwise hash the path). Our own key, not the Web Store's,
-# so chromium-web-store never offers a store "update" for it. prefs/ pins this ID to the toolbar.
+# wherever the unpacked copy lives (unpacked IDs otherwise hash the path). Our own key, not the
+# Web Store's, so chromium-web-store never offers a store "update" for it. prefs/ pins this ID.
 KEY="MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA8BW5lYjSb78NNloxZrYzNshiI+qv68F7XQ3CCRB3+xBtpk745O15fhK2F/8GmvL/yCy5faI4PyCPlpsEzDq85xFBJUOUU2aGXLIN8xIJZSlMhrKO+/v5psl7UFxLsoUc7MbpCB+LYVYkyywWja0ZVsVeXR6cDMscDlaBpD71eQK3TOXs3/z1ePcJpFu5FSzbunqQ/673Kip0HmujmtKcC99iqfyL5sMjWY7IJVXTWmsvZssz94vHJn2pHxyPy0fmEB62GTsfmBrs99m4RB0vF+TUr59a9/1/LuPJAebyDh/2gHXksCyIvTzB53FTCXiGjY9OfctjxFOMDHq79j+dkQIDAQAB"

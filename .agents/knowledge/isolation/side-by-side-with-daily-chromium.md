@@ -68,16 +68,24 @@ Things about the test setup to know before repeating it:
 
 - **Patched once, at build time.** `scripts/build-app.sh` sets `CFBundleIdentifier`
   (`org.agent-chromium.browser`), `CFBundleName`/`CFBundleDisplayName` and `CrProductDirName`
-  (`Agent-Chromium`), re-signs ad hoc and zips the result; the cask installs that zip. The first idea,
-  a tap cask that patches the upstream app in `postflight`, was dropped: Ruby `postflight` is legacy
-  in third-party taps, declarative steps run in a sandbox, and building once lets the upstream
-  signature be checked (Developer ID team `B9A88FL5XJ`) before it is replaced.
-- **Explicit `--user-data-dir` for every standalone launch.** Chromium refuses
-  `--remote-debugging-port` on its default data dir, so the launcher (`launcher/launch.sh`, run for
-  Dock, `open -a` and CLI launches alike) always passes the stable dir. The plist patch still matters:
-  it separates Launch Services, preferences and saved state, and keeps the default dir off the daily
-  one should a launch ever skip the flag.
-- **Extensions are bundled unpacked** and loaded with `--load-extension`.
+  (`Agent-Chromium`), re-signs ad hoc and zips the result; the cask installs that zip. That is the
+  whole change to the app (since 2026-10-12; before that a launcher, preferences and extensions were
+  bundled too). The first idea, a tap cask that patches the upstream app in `postflight`, was
+  dropped: Ruby `postflight` is legacy in third-party taps, declarative steps run in a sandbox, and
+  building once lets the upstream signature be checked (Developer ID team `B9A88FL5XJ`) before it is
+  replaced.
+- **Explicit `--user-data-dir` on every agent launch.** agent-browser launches the browser and always
+  passes a data dir: the `profile` from its config (`~/.agent-chromium/profiles/default`, set up by
+  `scripts/setup-agent-browser.sh`) or, with no profile configured, a temp dir it deletes on close.
+  Never set `profile` to a bare name like `Default`: agent-browser then copies that profile out of the
+  first Chrome, Canary or Chromium data dir it finds, i.e. the daily one.
+- **The plist patch still matters.** A launch from Finder or `open -a` has no data-dir flag and goes
+  to `CrProductDirName`'s folder, not the daily one; and the bundle ID separates Launch Services,
+  preferences, saved state and privacy permissions, and stops external link opens from landing in the
+  agent browser.
+- **Extensions are unpacked into `~/.agent-chromium/extensions`** and named in the config's
+  `extensions` list, which agent-browser turns into `--load-extension` and
+  `--disable-extensions-except`. Any extension forces a visible window (no `--headless`).
 - `plutil -replace` works whether or not the key already exists. `PlistBuddy Add` fails if it does.
 - Brew adds a quarantine flag, and an ad-hoc signed app with that flag gets blocked by Gatekeeper.
   The cask's `postflight_steps` run `xattr -cr`. (Avoid `--no-quarantine`; recent Homebrew deprecated
@@ -87,7 +95,11 @@ Things about the test setup to know before repeating it:
 
 - **Re-signing ad-hoc removes the Developer ID signature, hardened runtime, and library validation.**
   For ungoogled-chromium that is a real downgrade from how it ships. Weigh it against the next point.
-- **Every upgrade creates a new ad-hoc signature.** Expect a keychain prompt ("Always Allow") and a
-  Little Snitch "program has been modified" alert after each upgrade.
-- **The keychain key is shared.** Both builds use the same `Chromium Safe Storage` item, so the agent
-  build can decrypt cookies encrypted with the daily build's key. Only the data folders are separate.
+- **Every upgrade creates a new ad-hoc signature.** Expect a Little Snitch "program has been
+  modified" alert after each upgrade. Launches through agent-browser never prompt for the keychain:
+  it passes `--use-mock-keychain --password-store=basic`, so the profile's cookies are encrypted with
+  a fixed key, not a keychain item. Only a Finder launch uses the keychain, and then expect the
+  "Chromium Safe Storage" prompt ("Always Allow") after an upgrade.
+- **The keychain key is shared.** Both builds use the same `Chromium Safe Storage` item, so a
+  Finder-launched agent build can decrypt cookies encrypted with the daily build's key. Only the data
+  folders are separate.
